@@ -118,7 +118,8 @@ class ModireftIntervention(
 
         # Compute update: h + R^T(W(Rh) + b - Rh)
         update = transformed - rotated_base
-        output = base + torch.matmul(update, self.rotate_layer.weight.T)
+        rotated_weight = self.rotate_layer.weight.T.to(update.dtype)
+        output = base + torch.matmul(update.to(update.dtype), rotated_weight)
 
         return self.dropout(output.to(base.dtype))
 
