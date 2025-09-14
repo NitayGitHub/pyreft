@@ -111,6 +111,7 @@ class ModireftIntervention(
     def forward(self, base, source=None, subspaces=None):
         # Rotate hidden state
         rotated_base = self.rotate_layer(base)  # Rh
+        rotated_base = rotated_base.to(self.learned_source.weight.dtype)
 
         # Apply W(Rh) + b, then activation
         transformed = self.act_fn(self.learned_source(rotated_base))
