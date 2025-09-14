@@ -111,15 +111,13 @@ class ModireftIntervention(
     def forward(self, base, source=None, subspaces=None):
         # Rotate hidden state
         rotated_base = self.rotate_layer(base)  # Rh
-        rotated_base = rotated_base.to(self.learned_source.weight.dtype)
 
         # Apply W(Rh) + b, then activation
-        transformed = self.act_fn(self.learned_source(rotated_base))
+        transformed = self.act_fn(self.learned_source(rotated_base.to(self.learned_source.weight.dtype)))
 
         # Compute update: h + R^T(W(Rh) + b - Rh)
         update = transformed - rotated_base
-        rotated_weight = self.rotate_layer.weight.T.to(update.dtype)
-        output = base + torch.matmul(update.to(update.dtype), rotated_weight)
+        output = base + torch.matmul(update, self.rotate_layer.weight.T)
 
         return self.dropout(output.to(base.dtype))
 
