@@ -105,8 +105,8 @@ class ModireftIntervention(
             kwargs["low_rank_dimension"], kwargs["low_rank_dimension"]
         ).to(kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
 
-        self.dropout = torch.nn.Dropout(kwargs.get("dropout", 0.0))
-        self.act_fn = ACT2FN.get(kwargs.get("act_fn", "linear"), ACT2FN["linear"])
+        self.dropout = torch.nn.Dropout(kwargs["dropout"] if "dropout" in kwargs else 0.0)
+        self.act_fn = ACT2FN["linear"] if "act_fn" not in kwargs or kwargs["act_fn"] is None else ACT2FN[kwargs["act_fn"]]
 
     def forward(self, base, source=None, subspaces=None):
         # Rotate hidden state
