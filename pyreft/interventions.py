@@ -82,7 +82,7 @@ class LoreftIntervention(
         
         return
 
-class modireftIntervention(
+class ModireftIntervention(
     SourcelessIntervention,
     TrainableIntervention, 
     DistributedRepresentationIntervention
