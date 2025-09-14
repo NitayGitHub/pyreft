@@ -82,6 +82,45 @@ class LoreftIntervention(
         
         return
 
+class modireftIntervention(
+    SourcelessIntervention,
+    TrainableIntervention, 
+    DistributedRepresentationIntervention
+):
+    """
+    Modified LoReFT:
+    LoReFT(h) = h + R^T(W(Rh) + b − Rh)
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs, keep_last_dim=True)
+        
+        # rotation R (orthogonal projection)
+        rotate_layer = LowRankRotateLayer(
+            self.embed_dim, kwargs["low_rank_dimension"], init_orth=True
+        )
+        self.rotate_layer = torch.nn.utils.parametrizations.orthogonal(rotate_layer)
+
+        # W now maps from rotated space (low_rank_dim) -> rotated space
+        self.learned_source = torch.nn.Linear(
+            kwargs["low_rank_dimension"], kwargs["low_rank_dimension"]
+        ).to(kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
+
+        self.dropout = torch.nn.Dropout(kwargs.get("dropout", 0.0))
+        self.act_fn = ACT2FN.get(kwargs.get("act_fn", "linear"), ACT2FN["linear"])
+
+    def forward(self, base, source=None, subspaces=None):
+        # Rotate hidden state
+        rotated_base = self.rotate_layer(base)  # Rh
+
+        # Apply W(Rh) + b, then activation
+        transformed = self.act_fn(self.learned_source(rotated_base))
+
+        # Compute update: h + R^T(W(Rh) + b - Rh)
+        update = transformed - rotated_base
+        output = base + torch.matmul(update, self.rotate_layer.weight.T)
+
+        return self.dropout(output.to(base.dtype))
+
 
 class NoreftIntervention(
     SourcelessIntervention,
