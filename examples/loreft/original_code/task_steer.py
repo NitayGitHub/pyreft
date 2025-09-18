@@ -321,7 +321,7 @@ def finetune(
     # ensure everything is in eval mode
     reft_model.model.eval()
     for k,v in reft_model.interventions.items():
-        _ = v[0].eval()
+        _ = v.eval()
 
     print({"n_params": n_params})
     # do eval
