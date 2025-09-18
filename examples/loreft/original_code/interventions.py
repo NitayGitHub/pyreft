@@ -103,3 +103,47 @@ class ConditionedSourceLowRankIntervention(
             (self.act_fn(self.learned_source(base)) - proj_base), self.proj_layer.weight
         )
         return self.dropout(output.to(base.dtype))
+
+class ConditionedSourceEfficientLowRankRotatedSpaceIntervention(
+    ConstantSourceIntervention,
+    TrainableIntervention, 
+    DistributedRepresentationIntervention
+):
+    """
+    Modified LoReFT:
+    EffLoReFT(h) = h + R^T(W(Rh) + b − Rh)
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        rotate_layer = LowRankRotateLayer(self.embed_dim, kwargs["low_rank_dimension"])
+        self.rotate_layer = torch.nn.utils.parametrizations.orthogonal(rotate_layer)
+        self.learned_source = torch.nn.Linear(
+            self.embed_dim, kwargs["low_rank_dimension"]).to(
+            kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
+        self.dropout = torch.nn.Dropout(kwargs["dropout"])
+        self.act_fn = ACT2FN["linear"] if kwargs["act_fn"] is None else ACT2FN[kwargs["act_fn"]]
+        
+        # rotation R (orthogonal projection)
+        rotate_layer = LowRankRotateLayer(self.embed_dim, kwargs["low_rank_dimension"])
+        self.rotate_layer = torch.nn.utils.parametrizations.orthogonal(rotate_layer)
+
+        # W now maps from rotated space (low_rank_dim) -> rotated space
+        self.learned_source = torch.nn.Linear(
+            kwargs["low_rank_dimension"], kwargs["low_rank_dimension"]).to(
+            kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
+        self.dropout = torch.nn.Dropout(kwargs["dropout"])
+        self.act_fn = ACT2FN["linear"] if kwargs["act_fn"] is None else ACT2FN[kwargs["act_fn"]]
+
+    def forward(self, base, source=None, subspaces=None):
+        # Rotate hidden state
+        rotated_base = self.rotate_layer(base)  # Rh
+
+        # Apply W(Rh) + b, then activation
+        transformed = self.act_fn(self.learned_source(rotated_base.to(self.learned_source.weight.dtype)))
+
+        # Compute update: h + R^T(W(Rh) + b - Rh)
+        update = transformed - rotated_base
+        output = base + torch.matmul(update, self.rotate_layer.weight.T)
+
+        return self.dropout(output.to(base.dtype))
