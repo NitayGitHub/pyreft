@@ -165,7 +165,8 @@ class ReftTrainerForSequenceClassification(ReftTrainer):
         self,
         intervenable: pv.IntervenableModel,
         inputs,
-        return_outputs=False
+        return_outputs=False,
+        **kwargs
     ):
         # run intervened forward pass
         _, cf_outputs = intervenable(
