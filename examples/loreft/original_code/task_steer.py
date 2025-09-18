@@ -285,7 +285,7 @@ def finetune(
         save_strategy="epoch" if task == "glue" else "no",
         metric_for_best_model=metric_for_best_model if task == "glue" else None,
         load_best_model_at_end=True if task == "glue" else False,
-        logging_strategy="steps",
+        logging_strategy="epoch" if task == "glue" else "steps",
         save_total_limit=1, # for GLUE, it will save 2 at max.
         logging_steps=logging_steps,
         lr_scheduler_type=schedule,
