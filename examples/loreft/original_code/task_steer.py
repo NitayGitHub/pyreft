@@ -208,8 +208,8 @@ def finetune(
         intervention_type = ConditionedSourceLowRankIntervention
     elif intervention_type == "ConditionedSourceEfficientLowRankRotatedSpaceIntervention":
         intervention_type = ConditionedSourceEfficientLowRankRotatedSpaceIntervention
-    elif intervention_type == "ConditionedSourceEfficienterLowRankRotatedSpaceIntervention":
-        intervention_type = ConditionedSourceEfficienterLowRankRotatedSpaceIntervention
+    elif intervention_type == "ConditionedSourceNewLowRankRotatedSpaceIntervention":
+        intervention_type = ConditionedSourceNewLowRankRotatedSpaceIntervention
         
     # select collator based on the type
     if task in classification_tasks:
