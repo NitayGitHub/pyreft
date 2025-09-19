@@ -182,7 +182,7 @@ class ConditionedSourceEfficienterLowRankRotatedSpaceIntervention(
         update = w1_out - w2_out
 
         # Project back: h + R^T(update)
-        output = base + torch.matmul(update, self.rotate_layer.weight.T)
+        output = base + torch.matmul(update.to(self.rotate_layer.weight.dtype), self.rotate_layer.weight.T)
 
         return self.dropout(output.to(base.dtype))
 
