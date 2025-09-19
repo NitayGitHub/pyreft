@@ -140,49 +140,39 @@ class ConditionedSourceEfficientLowRankRotatedSpaceIntervention(
 
         return self.dropout(output.to(base.dtype))
 
-class ConditionedSourceEfficienterLowRankRotatedSpaceIntervention(
+class ConditionedSourceNewLowRankRotatedSpaceIntervention(
     ConstantSourceIntervention,
-    TrainableIntervention,
+    TrainableIntervention, 
     DistributedRepresentationIntervention
 ):
-    """
-    Modified LoReFT:
-    EffLoReFT(h) = h + R^T(W1(Rh) + b − W2(Rh) + b)
-    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        # rotation R (orthogonal projection)
         rotate_layer = LowRankRotateLayer(self.embed_dim, kwargs["low_rank_dimension"])
         self.rotate_layer = torch.nn.utils.parametrizations.orthogonal(rotate_layer)
 
-        # W1 and W2: both map rotated space -> rotated space
-        self.W1 = torch.nn.Linear(
-            kwargs["low_rank_dimension"], kwargs["low_rank_dimension"]).to(
-            kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
-
-        self.W2 = torch.nn.Linear(
-            kwargs["low_rank_dimension"], kwargs["low_rank_dimension"]).to(
-            kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
+        # Input now includes both base and rotated_base
+        input_dim = self.embed_dim + kwargs["low_rank_dimension"]
+        self.learned_source = torch.nn.Linear(
+            input_dim, kwargs["low_rank_dimension"]
+        ).to(kwargs["dtype"] if "dtype" in kwargs else torch.bfloat16)
 
         self.dropout = torch.nn.Dropout(kwargs["dropout"])
-        self.act_fn = ACT2FN["linear"] if kwargs["act_fn"] is None else ACT2FN[kwargs["act_fn"]]
-
+        self.act_fn = ACT2FN["linear"] if kwargs.get("act_fn") is None else ACT2FN[kwargs["act_fn"]]
+        
     def forward(self, base, source=None, subspaces=None):
-        # Rotate hidden state
-        rotated_base = self.rotate_layer(base)  # Rh
+        rotated_base = self.rotate_layer(base)
 
-        # Apply W1(Rh) + b
-        w1_out = self.act_fn(self.W1(rotated_base.to(self.W1.weight.dtype)))
+        # Concatenate base and rotated_base as input to learned_source
+        target_dtype = self.learned_source.weight.dtype
+        concat_input = torch.cat([
+            base.to(target_dtype),
+            rotated_base.to(target_dtype)
+        ], dim=-1)
 
-        # Apply W2(Rh) + b
-        w2_out = self.act_fn(self.W2(rotated_base.to(self.W2.weight.dtype)))
-
-        # Compute update: (W1(Rh)+b - W2(Rh)+b)
-        update = w1_out - w2_out
-
-        # Project back: h + R^T(update)
-        output = base + torch.matmul(update.to(self.rotate_layer.weight.dtype), self.rotate_layer.weight.T)
-
+        output = base + torch.matmul(
+            (self.act_fn(self.learned_source(concat_input)) - rotated_base),
+            self.rotate_layer.weight.T,
+        )
         return self.dropout(output.to(base.dtype))
+
 
